@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// URI with strict formatting to avoid ENOTFOUND DNS errors
+// Ensure the URI is perfectly clean. Copy this precisely.
 const MONGO_URI = "mongodb+srv://renjidps_db_user:6984DucBCESAKCjc@cluster0.p769m.mongodb.net/whatsapp_db?retryWrites=true&w=majority";
 
 const User = mongoose.model('User', new mongoose.Schema({
@@ -19,7 +19,7 @@ const User = mongoose.model('User', new mongoose.Schema({
 
 app.use(express.static(path.join(__dirname, '/')));
 
-// Failsafe Connection Logic
+// Database connection
 mongoose.connect(MONGO_URI)
     .then(() => {
         console.log("☁️ Successfully connected to MongoDB!");
@@ -30,29 +30,25 @@ mongoose.connect(MONGO_URI)
     });
 
 io.on('connection', (socket) => {
-    // Registration Logic
+    // Registration handler - CRITICAL since you dropped the database
     socket.on('request-register', async (data) => {
         try {
             await User.create({ username: data.username, password: data.password, role: 'user' });
             socket.emit('auth-response', { success: true, message: "Registered! Now Log In." });
         } catch (e) {
-            socket.emit('auth-response', { success: false, message: "Registration error." });
+            socket.emit('auth-response', { success: false, message: "User exists." });
         }
     });
 
-    // Login Logic
+    // Login handler
     socket.on('request-login', async (data) => {
-        try {
-            const user = await User.findOne({ username: data.username, password: data.password });
-            if (user) {
-                // Restoration of Admin role for Shashankkm
-                const role = (data.username === 'Shashankkm') ? 'admin' : user.role;
-                socket.emit('auth-response', { success: true, username: user.username, role: role });
-            } else {
-                socket.emit('auth-response', { success: false, message: "Invalid login credentials." });
-            }
-        } catch (e) {
-            socket.emit('auth-response', { success: false, message: "Database lookup failed." });
+        const user = await User.findOne({ username: data.username, password: data.password });
+        if (user) {
+            // Restore admin role logic
+            const role = (data.username === 'Shashankkm') ? 'admin' : user.role;
+            socket.emit('auth-response', { success: true, username: user.username, role: role });
+        } else {
+            socket.emit('auth-response', { success: false, message: "Invalid login credentials." });
         }
     });
 });
