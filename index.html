@@ -3,336 +3,308 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp Web Clone</title>
+    <title>WhatsApp Web - Cloud Edition</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { display: flex; height: 100vh; background-color: #f0f2f5; color: #111b21; }
-        
-        /* Auth Screen */
-        #auth-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #00a884; display: flex; justify-content: center; align-items: center; z-index: 1000; }
-        .auth-box { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 350px; text-align: center; }
-        .auth-box h2 { margin-bottom: 20px; color: #008069; }
-        .auth-box input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
-        .auth-box button { width: 100%; padding: 12px; background: #00a884; border: none; color: white; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; margin-top: 10px; }
-        .auth-box button:hover { background: #008069; }
-        .auth-box .toggle-link { margin-top: 15px; display: block; color: #008069; cursor: pointer; font-size: 14px; }
-
-        /* Main Layout */
-        #sidebar { width: 35%; max-width: 400px; min-width: 280px; background: #white; border-right: 1px solid #e9edef; display: flex; flex-direction: column; }
-        #chat-area { flex: 1; display: flex; flex-direction: column; background: #efeae2; position: relative; }
-
-        /* Header Layouts */
-        .header { height: 60px; background: #f0f2f5; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #e9edef; }
-        .user-profile { display: flex; align-items: center; gap: 10px; }
-        .avatar { width: 40px; height: 40px; border-radius: 50%; background: #dfe5e7; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #54656f; overflow: hidden; object-fit: cover; }
-        
-        /* Rooms list styling */
-        .search-bar-box { padding: 8px; background: #white; border-bottom: 1px solid #e9edef; }
-        .search-bar-box input { width: 100%; padding: 8px; border: none; background: #f0f2f5; border-radius: 8px; outline: none; }
-        #room-list { flex: 1; overflow-y: auto; background: white; }
-        .room-item { display: flex; align-items: center; padding: 12px 16px; cursor: pointer; border-bottom: 1px solid #f0f2f5; gap: 12px; }
-        .room-item:hover { background-color: #f5f6f6; }
-        .room-item.active { background-color: #eaebeb; }
-        .room-details { flex: 1; }
-        .room-title-row { display: flex; justify-content: space-between; }
-        .room-name-text { font-weight: 500; font-size: 16px; }
-
-        /* Messages Space */
-        #messages-container { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 8px; }
-        .msg-line { display: flex; flex-direction: column; max-width: 65%; padding: 8px 12px; border-radius: 8px; font-size: 14.5px; position: relative; box-shadow: 0 1px 0.5px rgba(0,0,0,0.1); }
-        .msg-line.incoming { background: white; align-self: flex-start; border-top-left-radius: 0; }
-        .msg-line.outgoing { background: #d9fdd3; align-self: flex-end; border-top-right-radius: 0; }
-        .msg-line.system-msg { background: #f0f2f5; align-self: center; text-align: center; max-width: 90%; color: #54656f; font-size: 12px; box-shadow: none; border-radius: 6px; }
-        .msg-sender { font-size: 12.5px; font-weight: 600; color: #008069; margin-bottom: 2px; }
-
-        /* Footer Input Area */
-        #input-panel { height: 62px; background: #f0f2f5; display: flex; align-items: center; padding: 5px 10px; gap: 10px; }
-        #message-input { flex: 1; padding: 12px; border: none; border-radius: 8px; outline: none; font-size: 15px; }
-        #send-btn { background: transparent; border: none; font-size: 24px; cursor: pointer; color: #54656f; padding: 0 10px; }
-
-        /* Admin Controls */
-        .admin-section { padding: 10px 16px; background: #f0f2f5; border-bottom: 1px solid #e9edef; display: flex; gap: 8px; }
-        .admin-input { flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px; outline: none; }
-        .admin-btn { padding: 6px 12px; background: #00a884; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .hidden { display: none !important; }
+        body {
+            background-color: #f0f2f5;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        .chat-bg {
+            background-color: #efeae2;
+            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+        }
     </style>
 </head>
-<body>
+<body class="h-screen w-screen overflow-hidden flex flex-col antialiased">
 
-    <div id="auth-container">
-        <div class="auth-box" id="login-form-view">
-            <h2>WhatsApp Login</h2>
-            <input type="text" id="login-username" placeholder="Enter Username...">
-            <input type="password" id="login-password" placeholder="Enter Password...">
-            <button onclick="submitLogin()">Log In</button>
-            <span class="toggle-link" onclick="toggleAuthViews(true)">Don't have an account? Register</span>
-        </div>
-        <div class="auth-box hidden" id="register-form-view">
-            <h2>Create Account</h2>
-            <input type="text" id="register-username" placeholder="Choose Username...">
-            <input type="password" id="register-password" placeholder="Choose Password...">
-            <button onclick="submitRegister()">Register</button>
-            <span class="toggle-link" onclick="toggleAuthViews(false)">Already have an account? Login</span>
+    <div id="auth-screen" class="fixed inset-0 bg-[#00a884] flex flex-col items-center justify-center z-50 transition-all duration-300">
+        <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md text-center">
+            <div class="flex justify-center mb-4">
+                <svg viewBox="0 0 24 24" width="60" height="60" class="text-[#00a884] fill-current">
+                    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.713-1.457L0 24zm6.59-3.771l.41.243c1.6.95 3.458 1.451 5.351 1.452 5.514 0 10.002-4.485 10.005-9.998.002-2.67-1.037-5.18-2.929-7.075C17.543 3.057 15.034 2.016 12.01 2.016c-5.523 0-10.01 4.486-10.014 10c-.002 1.897.501 3.743 1.458 5.348l.266.443-1.01 3.693 3.786-.993z"/>
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Setup WhatsApp Cloud Chat</h2>
+            
+            <div class="space-y-4">
+                <input type="text" id="auth-username" placeholder="Enter Username..." class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#00a884]">
+                <input type="password" id="auth-password" placeholder="Enter Password..." class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#00a884]">
+            </div>
+
+            <div class="flex gap-4 mt-6">
+                <button onclick="handleAuthSubmit(true)" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-2 rounded-md transition">Register</button>
+                <button onclick="handleAuthSubmit(false)" class="flex-1 bg-[#00a884] hover:bg-[#009675] text-white font-semibold py-2 rounded-md transition shadow">Log In</button>
+            </div>
+            <p id="auth-error-msg" class="text-red-500 text-sm mt-4 hidden"></p>
         </div>
     </div>
 
-    <div id="sidebar">
-        <div class="header">
-            <div class="user-profile">
-                <div class="avatar" id="my-avatar-logo">U</div>
-                <b id="my-display-name">Username</b>
+    <div class="flex-1 flex h-full w-full bg-white">
+        
+        <div class="w-[30%] border-r border-gray-300 bg-white flex flex-col h-full">
+            
+            <div class="h-[60px] bg-[#f0f2f5] px-4 flex items-center justify-between border-b border-gray-200">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-slate-400 rounded-full flex items-center justify-center font-bold text-white uppercase text-lg shadow-sm" id="user-avatar-tag">?</div>
+                    <span class="font-semibold text-gray-700 truncate max-w-[140px]" id="current-user-display">Connecting...</span>
+                </div>
+                <button onclick="logoutSession()" class="text-gray-500 hover:text-red-500 font-medium text-sm transition">Logout</button>
             </div>
-            <span style="color:#54656f; font-size:20px; cursor:pointer;" onclick="location.reload()">Logout</span>
-        </div>
 
-        <div class="admin-section hidden" id="admin-panel">
-            <input type="text" id="new-room-input" class="admin-input" placeholder="Create Chat Room Name...">
-            <button class="admin-btn" onclick="createNewRoom()">Add</button>
-        </div>
-
-        <div class="search-bar-box">
-            <input type="text" placeholder="Search or start new chat">
-        </div>
-
-        <div id="room-list">
-            </div>
-    </div>
-
-    <div id="chat-area">
-        <div class="header">
-            <div class="user-profile">
-                <img id="active-room-avatar" class="avatar" src="" style="display:none;">
-                <div id="active-room-avatar-placeholder" class="avatar">#</div>
-                <div>
-                    <h3 id="active-room-title">Select a room to begin</h3>
+            <div id="admin-panel" class="p-3 bg-gray-50 border-b border-gray-200 hidden">
+                <div class="flex gap-2">
+                    <input type="text" id="new-room-input" placeholder="Create Chat Room Name..." class="flex-1 px-3 py-1.5 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#00a884]">
+                    <button onclick="createNewRoom()" class="bg-[#00a884] hover:bg-[#009675] text-white text-sm font-semibold px-4 py-1.5 rounded-md shadow-sm transition">Add</button>
                 </div>
             </div>
-            <div class="admin-section hidden" id="pfp-management-panel" style="background:transparent; border:none; padding:0;">
-                <input type="text" id="room-pfp-url-input" class="admin-input" placeholder="Paste Room Image URL..." style="width:160px; height:32px; font-size:12px;">
-                <button class="admin-btn" style="height:32px; font-size:12px;" onclick="updateRoomPFP()">Set PFP</button>
+
+            <div class="p-2 bg-white border-b border-gray-100 flex items-center">
+                <div class="w-full bg-[#f0f2f5] rounded-lg px-3 py-1.5 flex items-center text-sm text-gray-500">
+                    <span class="truncate">Search or start new chat</span>
+                </div>
             </div>
+
+            <div class="flex-1 overflow-y-auto" id="channels-list-container">
+                </div>
         </div>
 
-        <div id="messages-container">
+        <div class="w-[70%] flex flex-col h-full bg-[#efeae2]">
+            
+            <div class="h-[60px] bg-[#f0f2f5] px-4 flex items-center justify-between border-b border-gray-200 shadow-sm z-10">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-[#00a884] rounded-full flex items-center justify-center font-bold text-white text-base shadow-inner" id="active-room-avatar">#</div>
+                    <div>
+                        <h2 class="font-semibold text-gray-800 text-base leading-tight" id="active-room-title">Select a Conversation</h2>
+                        <p class="text-xs text-gray-500 font-normal" id="active-room-status">click a channel on the left side to begin messaging</p>
+                    </div>
+                </div>
+
+                <div id="admin-pfp-control" class="hidden flex items-center gap-2">
+                    <input type="text" id="room-pfp-url-input" placeholder="Paste Room Image URL..." class="px-3 py-1.5 text-xs border rounded-md focus:outline-none w-48 bg-white">
+                    <button onclick="updateRoomPFP()" class="bg-[#00a884] hover:bg-[#009675] text-white text-xs font-semibold px-3 py-1.5 rounded-md transition shadow-sm">Set PFP</button>
+                </div>
             </div>
 
-        <div id="input-panel">
-            <input type="text" id="message-input" placeholder="Type a message" disabled>
-            <button id="send-btn" onclick="sendMessage()" disabled>➔</button>
+            <div class="flex-1 overflow-y-auto chat-bg p-6 space-y-3 flex flex-col" id="message-flow-viewport">
+                <div class="my-auto mx-auto text-center max-w-sm bg-white/80 p-6 rounded-xl shadow border border-gray-100">
+                    <p class="text-gray-600 text-sm font-medium">Welcome to the Cloud WhatsApp Environment!</p>
+                    <p class="text-gray-400 text-xs mt-1">Select any channel from your list sidebar to sync encrypted transaction logs from your live cloud collection.</p>
+                </div>
+            </div>
+
+            <div class="bg-[#f0f2f5] p-3 flex items-center gap-3 border-t border-gray-200 relative z-10">
+                <input type="text" id="chat-composer-input" placeholder="Type a message" class="flex-1 bg-white px-4 py-2 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:outline-none shadow-sm" onkeypress="if(event.key === 'Enter') dispatchChatMessage()">
+                <button onclick="dispatchChatMessage()" class="w-9 h-9 bg-transparent text-gray-500 hover:text-gray-700 flex items-center justify-center rounded-full transition">
+                    <svg viewBox="0 0 24 24" width="24" height="24" class="fill-current transform rotate-45"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+                </button>
+
+                <img src="https://i.imgur.com/8mXfRCH.png" class="absolute right-12 bottom-2 w-16 h-16 pointer-events-none opacity-90" style="z-index: 100;" alt="Sticker Decor">
+            </div>
         </div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
     <script>
-        // 🚀 CONNECTING LIVE 24/7 TO YOUR NEW RENDER PRODUCTION PATHWAY
-        const socket = io("https://shashank-chat.onrender.com");
+        const socket = io();
+        
+        let localUser = "";
+        let currentRole = "user";
+        let openChannel = "";
 
-        let currentUsername = "";
-        let currentUserRole = "user";
-        let currentRoom = "";
-        let globalRoomsMetadata = {};
+        // --- AUTH SUBMISSION CONTROLLER ---
+        function handleAuthSubmit(isRegister) {
+            const userBox = document.getElementById('auth-username');
+            const passBox = document.getElementById('auth-password');
+            const errMsg = document.getElementById('auth-error-msg');
 
-        // Authentication Toggle Views
-        function toggleAuthViews(showRegister) {
-            document.getElementById('login-form-view').classList.toggle('hidden', showRegister);
-            document.getElementById('register-form-view').classList.toggle('hidden', !showRegister);
-        }
+            const username = userBox.value.trim();
+            const password = passBox.value.trim();
 
-        // Authentication Actions
-        function submitLogin() {
-            const user = document.getElementById('login-username').value;
-            const pass = document.getElementById('login-password').value;
-            if(!user || !pass) return alert("Please fill out all login fields!");
-            socket.emit('request-login', { username: user, password: pass });
-        }
-
-        function submitRegister() {
-            const user = document.getElementById('register-username').value;
-            const pass = document.getElementById('register-password').value;
-            if(!user || !pass) return alert("Please enter registration parameters.");
-            socket.emit('request-register', { username: user, password: pass });
-        }
-
-        // Server Auth Response
-        socket.on('auth-response', (data) => {
-            if (!data.success) {
-                return alert(data.message || "Authentication rejected!");
-            }
-
-            if (data.isRegister) {
-                alert("Account created successfully! You can now log in.");
-                toggleAuthViews(false);
+            if (!username || !password) {
+                errMsg.textContent = "Please fill in all requested credential fields.";
+                errMsg.classList.remove('hidden');
                 return;
             }
 
-            // Successfully Logged In
-            currentUsername = data.username;
-            currentUserRole = data.role;
-            
-            document.getElementById('my-display-name').innerText = currentUsername;
-            document.getElementById('my-avatar-logo').innerText = currentUsername.charAt(0).toUpperCase();
-            document.getElementById('auth-container').style.display = 'none';
+            errMsg.classList.add('hidden');
+            const eventRoute = isRegister ? 'request-register' : 'request-login';
+            socket.emit(eventRoute, { username, password });
+        }
 
-            // Show admin panel options if authorized account
-            if (currentUserRole === 'admin') {
-                document.getElementById('admin-panel').classList.remove('hidden');
+        // Catch Authentication Pipeline Feedback
+        socket.on('auth-response', (res) => {
+            const errMsg = document.getElementById('auth-error-msg');
+            if (!res.success) {
+                errMsg.textContent = res.message;
+                errMsg.classList.remove('hidden');
+                return;
             }
 
-            socket.emit('new-user', currentUsername);
-            renderRoomListLayout(data.roomsData);
+            if (res.isRegister) {
+                alert("Account created successfully! Click 'Log In' to continue.");
+            } else {
+                // Initialize Application Ecosystem Profile State
+                localUser = res.username;
+                currentRole = res.role;
+
+                document.getElementById('auth-screen').classList.add('scale-0', 'opacity-0');
+                setTimeout(() => document.getElementById('auth-screen').remove(), 300);
+
+                document.getElementById('current-user-display').textContent = localUser;
+                document.getElementById('user-avatar-tag').textContent = localUser.charAt(0);
+
+                // 🚀 WHITELIST EVALUATOR: Unhides the tools if role state reads 'admin'
+                if (currentRole === 'admin') {
+                    document.getElementById('admin-panel').classList.remove('hidden');
+                    document.getElementById('admin-pfp-control').classList.remove('hidden');
+                }
+
+                socket.emit('new-user', localUser);
+                renderChannelsList(res.roomsData);
+            }
         });
 
-        // Build Sidebar Chat Rooms Interface Lists
-        function renderRoomListLayout(roomsData) {
-            globalRoomsMetadata = roomsData;
-            const container = document.getElementById('room-list');
+        // --- SIDEBAR ROOM RENDER LOGIC ---
+        function renderChannelsList(roomsData) {
+            const container = document.getElementById('channels-list-container');
             container.innerHTML = "";
 
             Object.keys(roomsData).forEach(roomName => {
-                const metadata = roomsData[roomName];
+                const roomInfo = roomsData[roomName];
+                
+                // Build HTML element structure manually
                 const item = document.createElement('div');
-                item.className = `room-item ${currentRoom === roomName ? 'active' : ''}`;
-                item.onclick = () => switchActiveRoom(roomName);
+                item.className = `flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-gray-100 transition duration-150 select-none ${openChannel === roomName ? 'bg-gray-100' : 'hover:bg-gray-50'}`;
+                item.onclick = () => selectActiveRoom(roomName);
 
-                // Setup Room Icons
-                let avatarHTML = `<div class="avatar">#</div>`;
-                if(metadata.pfp && metadata.pfp.trim() !== "") {
-                    avatarHTML = `<img class="avatar" src="${metadata.pfp}" object-fit="cover">`;
-                }
+                // Inject accurate PFP image or default badge placeholder
+                const avatarImg = roomInfo.pfp 
+                    ? `<img src="${roomInfo.pfp}" class="w-11 h-11 rounded-full object-cover shadow-sm">` 
+                    : `<div class="w-11 h-11 bg-emerald-500 text-white rounded-full flex items-center justify-center font-bold text-base shadow-sm">#</div>`;
 
                 item.innerHTML = `
-                    ${avatarHTML}
-                    <div class="room-details">
-                        <div class="room-title-row">
-                            <span class="room-name-text">${roomName}</span>
-                        </div>
+                    ${avatarImg}
+                    <div class="flex-1 truncate">
+                        <h4 class="font-semibold text-gray-800 text-sm">${roomName}</h4>
+                        <p class="text-xs text-gray-400 truncate mt-0.5">Click to view stream logs...</p>
                     </div>
                 `;
                 container.appendChild(item);
             });
         }
 
-        // Room switching actions
-        function switchActiveRoom(roomName) {
-            if(roomName === currentRoom) return;
-            currentRoom = roomName;
-
-            document.getElementById('active-room-title').innerText = currentRoom;
-            
-            // Check for Custom Room Profile Images
-            const activePFP = globalRoomsMetadata[currentRoom]?.pfp || "";
-            const imgTag = document.getElementById('active-room-avatar');
-            const placeholderTag = document.getElementById('active-room-avatar-placeholder');
-
-            if(activePFP && activePFP.trim() !== "") {
-                imgTag.src = activePFP;
-                imgTag.style.display = "block";
-                placeholderTag.style.display = "none";
-            } else {
-                imgTag.style.display = "none";
-                placeholderTag.style.display = "flex";
+        // Watch for Live Server Room Re-syncs
+        socket.on('sync-all-rooms', (roomsData) => {
+            renderChannelsList(roomsData);
+            if (openChannel && roomsData[openChannel]) {
+                updateHeaderUI(openChannel, roomsData[openChannel].pfp);
             }
-
-            // Setup input locking parameters
-            const isUpdatesRoom = (currentRoom === "WhatsApp Updates");
-            const canChat = !isUpdatesRoom || (currentUserRole === 'admin');
-
-            document.getElementById('message-input').disabled = !canChat;
-            document.getElementById('send-btn').disabled = !canChat;
-            document.getElementById('message-input').placeholder = canChat ? "Type a message" : "🔒 Only Admins can broadcast messages here.";
-
-            // Toggle admin PFP editor utility tools
-            if(currentUserRole === 'admin') {
-                document.getElementById('pfp-management-panel').classList.remove('hidden');
-                document.getElementById('room-pfp-url-input').value = activePFP;
-            } else {
-                document.getElementById('pfp-management-panel').classList.add('hidden');
-            }
-
-            document.getElementById('messages-container').innerHTML = "";
-            socket.emit('join-room', currentRoom);
-            renderRoomListLayout(globalRoomsMetadata);
-        }
-
-        // Message transmissions
-        function sendMessage() {
-            const input = document.getElementById('message-input');
-            const msg = input.value.trim();
-            if(!msg || !currentRoom) return;
-
-            socket.emit('send-chat-message', { room: currentRoom, message: msg });
-            input.value = "";
-        }
-
-        document.getElementById('message-input').addEventListener('keypress', (e) => {
-            if(e.key === 'Enter') sendMessage();
         });
 
-        // Appending text outputs smoothly
-        function displayMessageLine(data) {
-            const container = document.getElementById('messages-container');
-            const div = document.createElement('div');
-
-            if(data.type === 'system') {
-                div.className = "msg-line system-msg";
-                div.innerText = data.text;
-            } else {
-                const isMe = (data.sender === currentUsername);
-                div.className = `msg-line ${isMe ? 'outgoing' : 'incoming'}`;
-                
-                div.innerHTML = `
-                    ${!isMe ? `<div class="msg-sender">${data.sender}</div>` : ''}
-                    <div class="msg-text">${data.text}</div>
-                `;
-            }
-
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
+        // --- CHAT SYSTEM INTERACTION HANDLERS ---
+        function selectActiveRoom(roomName) {
+            openChannel = roomName;
+            
+            // Refresh Active Selection Highlights in Sidebar
+            socket.emit('join-room', roomName);
+            document.getElementById('active-room-title').textContent = roomName;
+            document.getElementById('active-room-status').textContent = "Active secure channel instance";
         }
 
-        // System Network Synchronization Listeners
+        function updateHeaderUI(roomName, pfpUrl) {
+            const headAvatar = document.getElementById('active-room-avatar');
+            if (pfpUrl) {
+                headAvatar.innerHTML = `<img src="${pfpUrl}" class="w-full h-full rounded-full object-cover">`;
+                headAvatar.className = "w-10 h-10 rounded-full flex items-center justify-center shadow-inner";
+            } else {
+                headAvatar.innerHTML = "#";
+                headAvatar.className = "w-10 h-10 bg-[#00a884] rounded-full flex items-center justify-center font-bold text-white text-base shadow-inner";
+            }
+        }
+
+        // Sync and Render Message Threads From DB
         socket.on('sync-room-history', (data) => {
-            if(data.room !== currentRoom) return;
-            document.getElementById('messages-container').innerHTML = "";
-            data.history.forEach(msg => {
-                displayMessageLine({
-                    type: msg.type,
-                    sender: msg.sender,
-                    text: msg.text
-                });
+            if (data.room !== openChannel) return;
+
+            const viewport = document.getElementById('message-flow-viewport');
+            viewport.innerHTML = "";
+
+            data.history.forEach(msg => appendMessageNode(msg));
+            viewport.scrollTop = viewport.scrollHeight;
+        });
+
+        function appendMessageNode(msg) {
+            const viewport = document.getElementById('message-flow-viewport');
+
+            if (msg.type === 'system') {
+                const row = document.createElement('div');
+                row.className = "flex justify-center my-1";
+                row.innerHTML = `<span class="bg-blue-50/90 text-blue-600 border border-blue-100 text-[11px] font-medium px-2.5 py-0.5 rounded-md shadow-sm">${msg.text}</span>`;
+                viewport.appendChild(row);
+                return;
+            }
+
+            const isMe = msg.sender === localUser;
+            const bubble = document.createElement('div');
+            bubble.className = `max-w-md px-3 py-1.5 rounded-lg shadow-sm text-sm text-gray-800 relative group flex flex-col ${isMe ? 'bg-[#d9fdd3] self-end rounded-tr-none' : 'bg-white self-start rounded-tl-none'}`;
+
+            bubble.innerHTML = `
+                <span class="text-[11px] font-bold text-emerald-700 leading-none mb-1 ${isMe ? 'hidden' : 'block'}">${msg.sender}</span>
+                <p class="leading-relaxed break-words">${msg.text}</p>
+                <span class="text-[9px] text-gray-400 self-end mt-0.5 leading-none">${new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+            `;
+
+            viewport.appendChild(bubble);
+            viewport.scrollTop = viewport.scrollHeight;
+        }
+
+        // Live Chat Inbound Message Dispatch
+        socket.on('chat-message', (data) => {
+            if (data.room !== openChannel) return;
+            appendMessageNode({
+                type: 'msg',
+                sender: data.name,
+                text: data.message,
+                timestamp: new Date()
             });
         });
 
-        socket.on('chat-message', (data) => {
-            if(data.room === currentRoom) {
-                displayMessageLine({ type: 'msg', sender: data.name, text: data.message });
-            }
-        });
-
         socket.on('system-message', (data) => {
-            if(data.room === currentRoom) {
-                displayMessageLine({ type: 'system', text: data.text });
-            }
+            if (data.room !== openChannel) return;
+            appendMessageNode({ type: 'system', text: data.text });
         });
 
-        socket.on('sync-all-rooms', (roomsData) => {
-            renderRoomListLayout(roomsData);
-        });
+        function dispatchChatMessage() {
+            const box = document.getElementById('chat-composer-input');
+            const txt = box.value.trim();
+            if (!txt || !openChannel) return;
 
-        // Custom Admin Utility Triggers
+            socket.emit('send-chat-message', { room: openChannel, message: txt });
+            box.value = "";
+        }
+
+        // --- 🔒 MODERATION SYSTEM TRIGGERS ---
         function createNewRoom() {
-            const input = document.getElementById('new-room-input');
-            const targetName = input.value.trim();
-            if(!targetName) return alert("Room title cannot be blank.");
+            const box = document.getElementById('new-room-input');
+            const name = box.value.trim();
+            if (!name) return;
 
-            socket.emit('create-new-room', targetName);
-            input.value = "";
+            socket.emit('create-new-room', name);
+            box.value = "";
         }
 
         function updateRoomPFP() {
-            const urlInput = document.getElementById('room-pfp-url-input').value.trim();
-            if(!currentRoom) return alert("Select an active group channel target first.");
-            socket.emit('update-room-pfp', { room: currentRoom, pfpUrl: urlInput });
+            const box = document.getElementById('room-pfp-url-input');
+            const url = box.value.trim();
+            if (!url || !openChannel) return;
+
+            socket.emit('update-room-pfp', { room: openChannel, pfpUrl: url });
+            box.value = "";
+        }
+
+        function logoutSession() {
+            window.location.reload();
         }
     </script>
 </body>
