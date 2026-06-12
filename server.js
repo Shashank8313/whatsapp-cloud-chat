@@ -8,8 +8,13 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Direct connection string (bypasses DNS SRV lookup)
-const MONGO_URI = "mongodb://renjidps_db_user:6984DucBCESAKCjc@cluster0-shard-00-00.p769m.mongodb.net:27017,cluster0-shard-00-01.p769m.mongodb.net:27017,cluster0-shard-00-02.p769m.mongodb.net:27017/whatsapp_db?ssl=true&replicaSet=atlas-p769m-shard-0&authSource=admin&retryWrites=true&w=majority";
+// This reads the URI from the Environment Variable you will set in Render
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+    console.error("❌ FATAL ERROR: MONGO_URI is not defined in Environment Variables");
+    process.exit(1);
+}
 
 const User = mongoose.model('User', new mongoose.Schema({
     username: { type: String, unique: true },
@@ -19,7 +24,7 @@ const User = mongoose.model('User', new mongoose.Schema({
 
 app.use(express.static(path.join(__dirname, '/')));
 
-// Robust connection
+// Database connection
 mongoose.connect(MONGO_URI)
     .then(() => {
         console.log("☁️ Successfully connected to MongoDB!");
