@@ -1,165 +1,247 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const path = require('path');
 const mongoose = require('mongoose');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
 
-app.use(express.static(path.join(__dirname)));
+// 🔌 Connect directly to your MongoDB Cloud Database
+const MONGO_URI = "mongodb+srv://renjidps_db_user:6984DucBCESAKCjc@cluster0.p769m.mongodb.net/whatsapp_db?retryWrites=true&w=majority&appName=Cluster0";
 
-// ☁️ Your custom Cloud Database link with the updated password
-const MONGO_URI = "mongodb+srv://renjidps_db_user:6984DucBCESAKCjc@cluster0.as355hu.mongodb.net/discord-whatsapp?retryWrites=true&w=majority&appName=Cluster0";
-
-// Connect to MongoDB Cloud
 mongoose.connect(MONGO_URI)
     .then(() => console.log("☁️ Successfully connected to MongoDB Cloud Database!"))
-    .catch(err => console.error("❌ Cloud Connection Error:", err));
+    .catch(err => console.error("❌ MongoDB Connection Error:", err));
 
-// Create the structure for cloud storage
-const ChannelSchema = new mongoose.Schema({
-    roomName: { type: String, unique: true, required: true },
-    pfp: { type: String, default: "" },
-    messages: { type: Array, default: [] }
+// --- MONGOOSE SCHEMAS & MODELS ---
+
+// User Account Schema
+const userSchema = new mongoose.Schema({
+    username: { type: String, unique: true, required: true },
+    password: { type: String, required: true },
+    role: { type: String, default: 'user' }
 });
-const Channel = mongoose.model('Channel', ChannelSchema);
+const User = mongoose.model('User', userSchema);
 
-// User Accounts List
-const users = {
-    "shashankm": { username: "Shashankm", password: "123", role: "admin" },
-    "shashank": { username: "Shashank", password: "123", role: "user" }
-};
+// Chat Message Schema
+const messageSchema = new mongoose.Schema({
+    type: { type: String, default: 'msg' }, // 'msg' or 'system'
+    sender: String,
+    text: String,
+    timestamp: { type: Date, default: Date.now }
+});
 
-// Automatically set up your default chat rooms in the cloud if they don't exist yet
-async function seedDefaultChannels() {
-    const defaults = ["WhatsApp Updates", "Global Lounge"];
-    for (let r of defaults) {
-        const exists = await Channel.findOne({ roomName: r });
-        if (!exists) {
-            let welcomeText = `Welcome to the public ${r} chat room.`;
-            if (r === "WhatsApp Updates") {
-                welcomeText = "This group will send all the updates of WhatsApp the one we use there.";
+// Chat Room / Channel Schema
+const channelSchema = new mongoose.Schema({
+    name: { type: String, unique: true, required: true },
+    pfp: { type: String, default: '' },
+    messages: [messageSchema]
+});
+const Channel = mongoose.model('Channel', channelSchema);
+
+// Serve Static Frontend Files (index.html)
+app.use(express.static(path.join(__dirname, '/')));
+
+// --- CORE APP LOGIC & SEEDING ---
+
+// Automatically create default starter rooms if the database is empty
+async function seedDefaultRooms() {
+    try {
+        const defaultRooms = ["WhatsApp Updates", "Global Lounge"];
+        for (const roomName of defaultRooms) {
+            const existing = await Channel.findOne({ name: roomName });
+            if (!existing) {
+                await Channel.create({ name: roomName, pfp: '', messages: [] });
+                console.log(`🏠 Starter room created: ${roomName}`);
             }
-            await Channel.create({
-                roomName: r,
-                pfp: "",
-                messages: [{ type: 'system', text: welcomeText }]
-            });
         }
+    } catch (err) {
+        console.error("Error seeding default rooms:", err);
     }
 }
-seedDefaultChannels();
+seedDefaultRooms();
 
-app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
+// Helper helper function to get all rooms formatted for the frontend
+async function getAllRoomsMetadata() {
+    const channels = await Channel.find({});
+    const metadata = {};
+    channels.forEach(ch => {
+        metadata[ch.name] = { pfp: ch.pfp || '' };
+    });
+    return metadata;
+}
+
+// --- SOCKET.IO REAL-TIME ROUTING ---
 
 io.on('connection', (socket) => {
-    let sessionUser = "";
+    let sessionUsername = "";
 
+    // 1. Handle Registration Requests
+    socket.on('request-register', async (data) => {
+        try {
+            const { username, password } = data;
+            const existingUser = await User.findOne({ username });
+
+            if (existingUser) {
+                return socket.emit('auth-response', { success: false, message: "Username already exists!" });
+            }
+
+            // Determine role setup
+            let assignedRole = 'user';
+            if (username === 'Shashankkm' || username === 'renjidps_db_user') {
+                assignedRole = 'admin';
+            }
+
+            const newUser = new User({ username, password, role: assignedRole });
+            await newUser.save();
+
+            socket.emit('auth-response', { success: true, isRegister: true });
+        } catch (err) {
+            socket.emit('auth-response', { success: false, message: "Server registration error." });
+        }
+    });
+
+    // 2. Handle Login Requests
     socket.on('request-login', async (data) => {
-        const { username, password } = data;
-        const lowerName = String(username).trim().toLowerCase();
+        try {
+            const { username, password } = data;
+            const user = await User.findOne({ username, password });
 
-        if (!users[lowerName] || users[lowerName].password !== password) {
-            return socket.emit('auth-response', { success: false, message: "Invalid credentials." });
+            if (!user) {
+                return socket.emit('auth-response', { success: false, message: "Invalid username or password!" });
+            }
+
+            // 🚀 FORCE WHITELIST: Double-check admin privileges right here
+            if (user.username === 'Shashankkm' || user.username === 'renjidps_db_user') {
+                user.role = 'admin';
+            }
+
+            sessionUsername = user.username;
+            const roomsData = await getAllRoomsMetadata();
+
+            socket.emit('auth-response', {
+                success: true,
+                isRegister: false,
+                username: user.username,
+                role: user.role,
+                roomsData: roomsData
+            });
+        } catch (err) {
+            socket.emit('auth-response', { success: false, message: "Server authentication login error." });
         }
-
-        sessionUser = users[lowerName].username;
-        
-        // Fetch active channel structures directly from cloud database
-        const channels = await Channel.find({});
-        const roomsMetadata = {};
-        channels.forEach(c => {
-            roomsMetadata[c.roomName] = { pfp: c.pfp || "" };
-        });
-
-        socket.emit('auth-response', { 
-            success: true, 
-            username: users[lowerName].username, 
-            role: users[lowerName].role,
-            roomsData: roomsMetadata
-        });
     });
 
-    socket.on('request-register', (data) => {
-        const { username, password } = data;
-        if (!username || !password) return socket.emit('auth-response', { success: false, message: "Missing fields." });
-
-        const lowerName = username.trim().toLowerCase();
-        if (users[lowerName]) return socket.emit('auth-response', { success: false, message: "Username already exists." });
-
-        users[lowerName] = { username: username.trim(), password: password, role: "user" };
-        socket.emit('auth-response', { success: true, isRegister: true });
-    });
-
+    // 3. User Joins Main Chat Instance
     socket.on('new-user', (username) => {
-        sessionUser = username.trim();
-        socket.to("Global Lounge").emit('system-message', {
-            room: "Global Lounge",
-            text: `✨ ${sessionUser} joined the chat!`
-        });
+        sessionUsername = username;
+        console.log(`👤 User connected: ${username}`);
     });
 
+    // 4. User Joins a Specific Room
     socket.on('join-room', async (roomName) => {
-        socket.join(roomName);
-        
-        let channel = await Channel.findOne({ roomName: roomName });
-        if (!channel) {
-            channel = await Channel.create({ roomName: roomName, pfp: "", messages: [] });
-        }
-        
-        socket.emit('sync-room-history', { 
-            room: roomName, 
-            history: channel.messages || [],
-            pfp: channel.pfp || ""
+        // Leave previous rooms
+        const currentRooms = Array.from(socket.rooms);
+        currentRooms.forEach(room => {
+            if (room !== socket.id) socket.leave(room);
         });
-        
-        const allChannels = await Channel.find({});
-        const updatePayload = {};
-        allChannels.forEach(c => { updatePayload[c.roomName] = { pfp: c.pfp || "" }; });
-        io.emit('sync-all-rooms', updatePayload);
-    });
 
-    socket.on('create-new-room', async (roomName) => {
-        let channel = await Channel.findOne({ roomName: roomName });
-        if (!channel) {
-            await Channel.create({ roomName: roomName, pfp: "", messages: [] });
-            
-            const allChannels = await Channel.find({});
-            const updatePayload = {};
-            allChannels.forEach(c => { updatePayload[c.roomName] = { pfp: c.pfp || "" }; });
-            io.emit('sync-all-rooms', updatePayload);
+        socket.join(roomName);
+
+        // Fetch room from DB to load past messages
+        const channel = await Channel.findOne({ name: roomName });
+        if (channel) {
+            socket.emit('sync-room-history', {
+                room: roomName,
+                history: channel.messages
+            });
         }
     });
 
-    socket.on('update-room-pfp', async (data) => {
-        const { room, pfpUrl } = data;
-        await Channel.findOneAndUpdate({ roomName: room }, { pfp: pfpUrl });
-        
-        const allChannels = await Channel.find({});
-        const updatePayload = {};
-        allChannels.forEach(c => { updatePayload[c.roomName] = { pfp: c.pfp || "" }; });
-        io.emit('sync-all-rooms', updatePayload);
-    });
-
+    // 5. Handling Live Messaging
     socket.on('send-chat-message', async (data) => {
-        if (!sessionUser) return;
-        
-        const currentRole = (sessionUser.toLowerCase() === 'shashankm') ? 'admin' : 'user';
-        if (data.room === "WhatsApp Updates" && currentRole !== 'admin') return;
+        const { room, message } = data;
+        if (!sessionUsername || !room || !message) return;
 
-        const msgObj = { type: 'msg', sender: sessionUser, text: data.message };
-        
-        // Save history inside MongoDB Cloud arrays seamlessly
+        const newMsg = {
+            type: 'msg',
+            sender: sessionUsername,
+            text: message,
+            timestamp: new Date()
+        };
+
+        // Save straight to MongoDB collection array
         await Channel.findOneAndUpdate(
-            { roomName: data.room },
-            { $push: { messages: msgObj } }
+            { name: room },
+            { $push: { messages: newMsg } }
         );
 
-        io.to(data.room).emit('chat-message', { room: data.room, name: sessionUser, message: data.message });
+        // Broadcast out to everyone in the room live
+        io.to(room).emit('chat-message', {
+            room: room,
+            message: message,
+            name: sessionUsername
+        });
+    });
+
+    // 6. Admin Control: Create a Brand New Room
+    socket.on('create-new-room', async (roomName) => {
+        try {
+            const existing = await Channel.findOne({ name: roomName });
+            if (existing) return;
+
+            const newChannel = new Channel({ name: roomName, pfp: '', messages: [] });
+            await newChannel.save();
+
+            // Notify everyone's sidebar layout to update live
+            const roomsData = await getAllRoomsMetadata();
+            io.emit('sync-all-rooms', roomsData);
+        } catch (err) {
+            console.error("Error creating room:", err);
+        }
+    });
+
+    // 7. Admin Control: Update Room Profile Picture
+    socket.on('update-room-pfp', async (data) => {
+        try {
+            const { room, pfpUrl } = data;
+            await Channel.findOneAndUpdate({ name: room }, { pfp: pfpUrl });
+
+            // Broadcast room state change sync
+            const roomsData = await getAllRoomsMetadata();
+            io.emit('sync-all-rooms', roomsData);
+
+            // Send a nice system note indicating profile changes
+            const systemMsg = {
+                type: 'system',
+                sender: 'System',
+                text: `⚙️ Room icon was updated by an administrator.`,
+                timestamp: new Date()
+            };
+
+            await Channel.findOneAndUpdate({ name: room }, { $push: { messages: systemMsg } });
+            io.to(room).emit('system-message', { room: room, text: systemMsg.text });
+        } catch (err) {
+            console.error("Error updating profile icon:", err);
+        }
+    });
+
+    // 8. Connection cleanup
+    socket.on('disconnect', () => {
+        if (sessionUsername) {
+            console.log(`🚪 User disconnected: ${sessionUsername}`);
+        }
     });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🚀 Server running smoothly on port ${PORT}`));
+// Start listening on Render's dynamic port environment or fallback to 10000 local
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, () => {
+    console.log(`🚀 Server running smoothly on port ${PORT}`);
+});
