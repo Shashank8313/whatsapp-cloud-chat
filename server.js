@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Ensure this URI is copied exactly, including the username/password
+// Double-check this URI for any accidental spaces or hidden characters
 const MONGO_URI = "mongodb+srv://renjidps_db_user:6984DucBCESAKCjc@cluster0.p769m.mongodb.net/whatsapp_db?retryWrites=true&w=majority";
 
 const User = mongoose.model('User', new mongoose.Schema({
@@ -33,27 +33,27 @@ mongoose.connect(MONGO_URI)
     })
     .catch(err => {
         console.error("❌ Connection Error:", err);
-        process.exit(1); 
+        // Do not use process.exit(1) here if you want Render to attempt a retry
     });
 
 io.on('connection', (socket) => {
-    // Registration Logic
     socket.on('request-register', async (data) => {
         try {
             await User.create({ username: data.username, password: data.password, role: 'user' });
             socket.emit('auth-response', { success: true, message: "Registered! Now Log In." });
-        } catch (e) { socket.emit('auth-response', { success: false, message: "Error or User exists." }); }
+        } catch (e) { socket.emit('auth-response', { success: false, message: "User exists." }); }
     });
 
-    // Login Logic
     socket.on('request-login', async (data) => {
-        const user = await User.findOne({ username: data.username, password: data.password });
-        if (user) {
-            // Restore Admin role
-            const role = (data.username === 'Shashankkm') ? 'admin' : user.role;
-            socket.emit('auth-response', { success: true, username: user.username, role: role });
-        } else {
-            socket.emit('auth-response', { success: false, message: "Invalid credentials." });
-        }
+        try {
+            const user = await User.findOne({ username: data.username, password: data.password });
+            if (user) {
+                // Admin features restored for your account
+                const role = (data.username === 'Shashankkm') ? 'admin' : user.role;
+                socket.emit('auth-response', { success: true, username: user.username, role: role });
+            } else {
+                socket.emit('auth-response', { success: false, message: "Invalid credentials." });
+            }
+        } catch (e) { socket.emit('auth-response', { success: false, message: "Login failed." }); }
     });
 });
