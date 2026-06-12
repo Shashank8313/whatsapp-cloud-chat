@@ -1,0 +1,17 @@
+{
+  "name": "whatsapp-clone",
+  "version": "1.0.0",
+  "description": "WhatsApp Multi-Chat Clone with World Wide Tunneling",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "tunnel": "npx localtunnel --port 3000 --subdomain shashank-chat",
+    "global-start": "npx concurrently \"npm run start\" \"npm run tunnel\""
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.19.2",
+    "mongoose": "^9.7.0",
+    "socket.io": "^4.7.5"
+  }
+}
